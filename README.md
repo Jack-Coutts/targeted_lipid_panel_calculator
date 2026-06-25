@@ -44,7 +44,7 @@ flowchart TD
 
     CALC --> F{ISTD area in results<br/>AND ISTD conc in config?}
     F -->|No| SKIP[leave nmol/mL blank for all samples<br/>+ record in report.csv]
-    F -->|Yes| FORMULA["for each sample:<br/>nmol/mL = (sample area / sample istd_area)<br/>× istd_conc × RF / 1000"]
+    F -->|Yes| FORMULA["for each sample:<br/>nmol/mL = (sample area / sample istd_area)<br/>× istd_conc × RF"]
 
     ISY --> OUT[(outputs/output.csv<br/>Area + nmol/mL per sample)]
     SKIP --> OUT
@@ -133,11 +133,16 @@ Written to `<input folder>/outputs/`:
   | Compound Method | | Sample_01 | Sample_01 | Sample_02 | Sample_02 |
   |---|---|---|---|---|---|
   | **Name** | **Internal Standard (y/n)** | **Area** | **nmol/mL** | **Area** | **nmol/mL** |
-  | PC (14:0_16:0) | n | 500000 | 0.21231 | 412300 | 0.17503 |
+  | PC (14:0_16:0) | n | 500000 | 212.31 | 412300 | 175.03 |
   | PC (15:0_18:1) d7 (IS) | y | 58328343 | 212.31 | 60112022 | 212.31 |
 
-- **`report.csv`** — one row per compound that could **not** be fully computed, with
-  the reason (columns: `Name`, `Role`, `Issue`).
+- **`report.csv`** — one row per compound that could **not** be fully computed.
+  Its columns are:
+  - **`Name`** — the compound name from `results.csv`.
+  - **`Role`** — how the compound was treated: `compound` (a measured compound
+    whose internal standard couldn't be resolved), `internal standard`, or
+    `unknown`.
+  - **`Issue`** — why it couldn't be computed (see the next section).
 
 ---
 
@@ -152,10 +157,16 @@ concentration is then calculated **independently for every sample** (every
    `reference_compounds.csv`.
    - If so → `Internal Standard = y`, and each sample's `nmol/mL` is the config
      file's `uM or nmol/mL` value for that name (the same for every sample).
+   - **Unknown rows.** A row that is treated as an internal standard *only*
+     because it isn't in the reference, **and** also has no concentration in the
+     config, can't be identified as either a real compound or a known standard.
+     Its `nmol/mL` is left blank and it is listed in `report.csv` with
+     `Role = unknown` and `Issue = "not found in reference or config - check
+     this"` so it can be investigated.
 2. **Otherwise** → `Internal Standard = n`, and for each sample:
 
    ```
-   nmol/mL = (compound area / ISTD area) * ISTD concentration * Response Factor / 1000
+   nmol/mL = (compound area / ISTD area) * ISTD concentration * Response Factor
    ```
 
    - **compound area** — that sample's area for the compound.

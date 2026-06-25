@@ -297,10 +297,13 @@ def calculate(
             conc = config.get(norm)
             conc_str = "" if conc is None else _format_number(conc)
             if conc is None:
+                # Labelled an internal standard only because it isn't in the
+                # reference; with no config concentration either, its identity
+                # is genuinely unknown.
                 flag_unmatched(
                     raw_name,
-                    "internal standard",
-                    "no matching concentration in config file",
+                    "unknown",
+                    "not found in reference or config - check this",
                 )
             # An internal standard's concentration is the same for every sample.
             for j in range(n_samples):
@@ -365,10 +368,10 @@ def _per_sample_value(
     istd_conc: float,
     response_factor: float,
 ) -> float | None:
-    """((area / istd_area) * istd_conc * RF) / 1000 for one sample, or None."""
+    """(area / istd_area) * istd_conc * RF for one sample, or None."""
     if compound_area is None or istd_area is None or istd_area == 0:
         return None
-    return (compound_area / istd_area) * istd_conc * response_factor / 1000
+    return (compound_area / istd_area) * istd_conc * response_factor
 
 
 def _format_number(value: float) -> str:

@@ -20,6 +20,7 @@ PC (14:0_16:0),500000,400000
 AC (10:0),154239,100000
 LPC (18:1) d7 (IS),2000000,2000000
 LPC (18:1) d7 (IS),2000000,2000000
+Mystery (1:0),10,20
 """
 
 REFERENCE = """\
@@ -91,12 +92,12 @@ def test_calculate_per_sample_values(tmp_path: Path):
     assert istd[1] == "y"
     assert istd[3] == "212.31" and istd[5] == "212.31"
 
-    # Compound, sample A: (500000/1000000) * 212.31 * 2 / 1000 = 0.21231
-    # Compound, sample B: (400000/2000000) * 212.31 * 2 / 1000 = 0.084924
+    # Compound, sample A: (500000/1000000) * 212.31 * 2 = 212.31
+    # Compound, sample B: (400000/2000000) * 212.31 * 2 = 84.924
     compound = rows["PC (14:0_16:0)"]
     assert compound[1] == "n"
-    assert float(compound[3]) == pytest.approx(0.21231)
-    assert float(compound[5]) == pytest.approx(0.084924)
+    assert float(compound[3]) == pytest.approx(212.31)
+    assert float(compound[5]) == pytest.approx(84.924)
 
 
 def test_missing_istd_is_blank_and_reported(tmp_path: Path):
@@ -117,6 +118,20 @@ def test_missing_istd_is_blank_and_reported(tmp_path: Path):
     assert any(u["Name"] == "AC (10:0)" for u in result.unmatched)
 
 
+def test_unknown_when_not_in_reference_or_config(tmp_path: Path):
+    _write(tmp_path)
+    result = calc.calculate(
+        tmp_path / "results.csv",
+        tmp_path / "config_splash_II.csv",
+        tmp_path / "reference_compounds.csv",
+    )
+    # 'Mystery (1:0)' is in neither reference nor config -> reported as unknown.
+    unknown = [u for u in result.unmatched if u["Name"] == "Mystery (1:0)"]
+    assert len(unknown) == 1
+    assert unknown[0]["Role"] == "unknown"
+    assert unknown[0]["Issue"] == "not found in reference or config - check this"
+
+
 def test_single_sample_without_sample_row(tmp_path: Path):
     # A results file whose first row is already the header (no sample-names row).
     (tmp_path / "results.csv").write_text(
@@ -134,7 +149,7 @@ def test_single_sample_without_sample_row(tmp_path: Path):
     # No sample-name row -> a single header row.
     assert len(result.header_rows) == 1
     rows = _rows_by_name(result)
-    assert float(rows["PC (14:0_16:0)"][3]) == pytest.approx(0.21231)
+    assert float(rows["PC (14:0_16:0)"][3]) == pytest.approx(212.31)
 
 
 def test_run_on_directory_writes_outputs(tmp_path: Path):
