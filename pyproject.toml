@@ -1,0 +1,34 @@
+[project]
+name = "targeted-lipid-panel-calculator"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Jack Coutts", email = "jackwgcoutts@proton.me" }
+]
+requires-python = ">=3.14"
+dependencies = []
+
+[project.scripts]
+targeted-lipid-panel-calculator = "targeted_lipid_panel_calculator:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "ruff>=0.6",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.ruff]
+line-length = 88
+target-version = "py314"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
