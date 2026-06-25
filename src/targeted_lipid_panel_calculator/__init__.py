@@ -1,2 +1,3 @@
-def main() -> None:
-    print("Hello from targeted-lipid-panel-calculator!")
+from targeted_lipid_panel_calculator.cli import main
+
+__all__ = ["main"]
