@@ -1,0 +1,3 @@
+# Normalize line endings; keep shell scripts LF so they run on macOS/Linux.
+* text=auto
+*.sh text eol=lf
