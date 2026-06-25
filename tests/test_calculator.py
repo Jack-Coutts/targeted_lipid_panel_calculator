@@ -141,3 +141,21 @@ def test_discover_inputs_errors(tmp_path: Path):
     (tmp_path / "config_other.csv").write_text(CONFIG, encoding="utf-8")
     with pytest.raises(calc.InputError, match="please leave only one"):
         calc.discover_inputs(tmp_path)  # two config files
+
+
+def test_discover_accepts_reference_suffix(tmp_path: Path):
+    _write(tmp_path)
+    (tmp_path / "reference_compounds.csv").rename(
+        tmp_path / "reference_compounds_2024.csv"
+    )
+    inputs = calc.discover_inputs(tmp_path)
+    assert inputs.reference.name == "reference_compounds_2024.csv"
+
+
+def test_discover_errors_on_two_reference_files(tmp_path: Path):
+    _write(tmp_path)
+    (tmp_path / "reference_compounds_extra.csv").write_text(
+        REFERENCE, encoding="utf-8"
+    )
+    with pytest.raises(calc.InputError, match="please leave only one"):
+        calc.discover_inputs(tmp_path)

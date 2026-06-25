@@ -25,7 +25,7 @@ RESULTS_AREA = "Area"
 
 # File names looked for inside the input directory.
 RESULTS_FILENAME = "results.csv"
-REFERENCE_FILENAME = "reference_compounds.csv"
+REFERENCE_GLOB = "reference_compounds*.csv"
 CONFIG_GLOB = "config*.csv"
 OUTPUT_DIRNAME = "outputs"
 OUTPUT_FILENAME = "output.csv"
@@ -282,11 +282,33 @@ def write_report(path: Path, result: CalculationResult) -> None:
         writer.writerows(result.unmatched)
 
 
+def _find_one(directory: Path, pattern: str, problems: list[str]) -> Path | None:
+    """Return the single file in ``directory`` matching ``pattern``.
+
+    Appends a message to ``problems`` (and returns ``None``) if there are zero
+    or more than one match.
+    """
+    matches = sorted(directory.glob(pattern))
+    if not matches:
+        problems.append(f"No file matching '{pattern}'.")
+        return None
+    if len(matches) > 1:
+        names = ", ".join(p.name for p in matches)
+        problems.append(
+            f"Found {len(matches)} files matching '{pattern}' "
+            f"({names}); please leave only one."
+        )
+        return None
+    return matches[0]
+
+
 def discover_inputs(directory: Path) -> DiscoveredInputs:
     """Locate the three input files inside ``directory``.
 
     Raises :class:`InputError` with a human-readable message if a required file
-    is missing or if the config file is ambiguous.
+    is missing or if the config/reference file is ambiguous. The config and
+    reference files are matched by prefix (``config*.csv`` and
+    ``reference_compounds*.csv``), so anything may follow the prefix.
     """
     if not directory.is_dir():
         raise InputError(f"Not a folder: {directory}")
@@ -297,22 +319,8 @@ def discover_inputs(directory: Path) -> DiscoveredInputs:
     if not results.is_file():
         problems.append(f"Missing '{RESULTS_FILENAME}'.")
 
-    reference = directory / REFERENCE_FILENAME
-    if not reference.is_file():
-        problems.append(f"Missing '{REFERENCE_FILENAME}'.")
-
-    configs = sorted(directory.glob(CONFIG_GLOB))
-    config: Path | None = None
-    if not configs:
-        problems.append(f"No config file matching '{CONFIG_GLOB}'.")
-    elif len(configs) > 1:
-        names = ", ".join(p.name for p in configs)
-        problems.append(
-            f"Found {len(configs)} files matching '{CONFIG_GLOB}' "
-            f"({names}); please leave only one."
-        )
-    else:
-        config = configs[0]
+    reference = _find_one(directory, REFERENCE_GLOB, problems)
+    config = _find_one(directory, CONFIG_GLOB, problems)
 
     if problems:
         joined = "\n  - ".join(problems)
@@ -320,7 +328,7 @@ def discover_inputs(directory: Path) -> DiscoveredInputs:
             f"Could not read inputs from:\n  {directory}\n\n  - {joined}"
         )
 
-    assert config is not None  # guaranteed when there are no problems
+    assert reference is not None and config is not None
     return DiscoveredInputs(results=results, config=config, reference=reference)
 
 

@@ -69,10 +69,12 @@ The measured peak areas. **Required columns:** `Name`, `Area`.
 | PC (14:0_16:0) | 706.5 -> 184.1 | 5.0 | 500000 |
 | PC (15:0_18:1) d7 (IS) | 753.6 -> 184.1 | 6.733 | 58328343 |
 
-### 2. `reference_compounds.csv` (exact name)
+### 2. `reference_compounds*.csv` (one file starting with `reference_compounds`)
 
-The lookup table linking each compound to its internal standard. **Required
-columns:** `Compound name`, `ISTD Compound`, `Response Factor`.
+The lookup table linking each compound to its internal standard. The filename
+must start with `reference_compounds` (e.g. `reference_compounds.csv` or
+`reference_compounds_2024.csv`); exactly one such file must be present.
+**Required columns:** `Compound name`, `ISTD Compound`, `Response Factor`.
 
 | Compound name | ISTD Compound | Response Factor |
 |---|---|---|
