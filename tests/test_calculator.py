@@ -5,18 +5,21 @@ import pytest
 
 from targeted_lipid_panel_calculator import calculator as calc
 
-# Minimal fixtures that reproduce the real-world naming quirks:
+# Minimal fixtures that reproduce the real-world quirks:
+#   - results has a sample-names row on top, then a "Name, Area, Area, ..."
+#     header, then one area per sample;
 #   - results uses spaces + "(IS)" suffix:      "PC (15:0_18:1) d7 (IS)"
 #   - reference uses no space, no suffix:       "PC(15:0_18:1) d7"
 #   - config matches the results style.
 
 RESULTS = """\
-Name,Transition,RT,Area
-PC (15:0_18:1) d7 (IS),753.6 -> 184.1,6.7,1000000
-PC (14:0_16:0),706.5 -> 184.1,5.0,500000
-AC (10:0),316.3 -> 85.1,0.9,154239
-LPC (18:1) d7 (IS),529.4 -> 184.1,2.8,2000000
-LPC (18:1) d7 (IS),529.4 -> 184.1,2.8,2000000
+Compound Method,SampleA,SampleB
+Name,Area,Area
+PC (15:0_18:1) d7 (IS),1000000,2000000
+PC (14:0_16:0),500000,400000
+AC (10:0),154239,100000
+LPC (18:1) d7 (IS),2000000,2000000
+LPC (18:1) d7 (IS),2000000,2000000
 """
 
 REFERENCE = """\
@@ -38,6 +41,10 @@ def _write(directory: Path) -> None:
     (directory / "config_splash_II.csv").write_text(CONFIG, encoding="utf-8")
 
 
+def _rows_by_name(result: calc.CalculationResult) -> dict[str, list[str]]:
+    return {row[0]: row for row in result.data_rows}
+
+
 @pytest.mark.parametrize(
     "a,b",
     [
@@ -55,24 +62,41 @@ def test_is_marker_detection():
     assert not calc.is_marked_internal_standard("AC (10:0)")
 
 
-def test_calculate_marks_and_computes(tmp_path: Path):
+def test_header_rows_interleave_samples(tmp_path: Path):
     _write(tmp_path)
     result = calc.calculate(
         tmp_path / "results.csv",
         tmp_path / "config_splash_II.csv",
         tmp_path / "reference_compounds.csv",
     )
-    by_name = {r["Name"]: r for r in result.rows}
+    sample_header, field_header = result.header_rows
+    # Sample names appear above both the Area and its nmol/mL column.
+    assert sample_header == ["Compound Method", "", "SampleA", "SampleA",
+                             "SampleB", "SampleB"]
+    assert field_header == ["Name", calc.INTERNAL_STANDARD_COLUMN,
+                            "Area", "nmol/mL", "Area", "nmol/mL"]
 
-    # Internal standard: marked y, concentration straight from config.
-    istd = by_name["PC (15:0_18:1) d7 (IS)"]
-    assert istd[calc.INTERNAL_STANDARD_COLUMN] == "y"
-    assert istd[calc.CONCENTRATION_COLUMN] == "212.31"
 
-    # Normal compound: (500000/1000000) * 212.31 * 2 / 1000 = 0.21231
-    compound = by_name["PC (14:0_16:0)"]
-    assert compound[calc.INTERNAL_STANDARD_COLUMN] == "n"
-    assert float(compound[calc.CONCENTRATION_COLUMN]) == pytest.approx(0.21231)
+def test_calculate_per_sample_values(tmp_path: Path):
+    _write(tmp_path)
+    result = calc.calculate(
+        tmp_path / "results.csv",
+        tmp_path / "config_splash_II.csv",
+        tmp_path / "reference_compounds.csv",
+    )
+    rows = _rows_by_name(result)
+
+    # Internal standard: y, concentration repeated for each sample.
+    istd = rows["PC (15:0_18:1) d7 (IS)"]
+    assert istd[1] == "y"
+    assert istd[3] == "212.31" and istd[5] == "212.31"
+
+    # Compound, sample A: (500000/1000000) * 212.31 * 2 / 1000 = 0.21231
+    # Compound, sample B: (400000/2000000) * 212.31 * 2 / 1000 = 0.084924
+    compound = rows["PC (14:0_16:0)"]
+    assert compound[1] == "n"
+    assert float(compound[3]) == pytest.approx(0.21231)
+    assert float(compound[5]) == pytest.approx(0.084924)
 
 
 def test_missing_istd_is_blank_and_reported(tmp_path: Path):
@@ -82,13 +106,35 @@ def test_missing_istd_is_blank_and_reported(tmp_path: Path):
         tmp_path / "config_splash_II.csv",
         tmp_path / "reference_compounds.csv",
     )
-    by_name = {r["Name"]: r for r in result.rows}
+    rows = _rows_by_name(result)
 
-    # AC (10:0)'s ISTD "AC(16:0) d3" is absent from results -> blank + report.
-    ac = by_name["AC (10:0)"]
-    assert ac[calc.INTERNAL_STANDARD_COLUMN] == "n"
-    assert ac[calc.CONCENTRATION_COLUMN] == ""
+    # AC (10:0)'s ISTD is absent from results -> blank nmol/mL in every sample.
+    ac = rows["AC (10:0)"]
+    assert ac[1] == "n"
+    assert ac[3] == "" and ac[5] == ""
+    # Original areas are preserved even when nmol/mL can't be computed.
+    assert ac[2] == "154239" and ac[4] == "100000"
     assert any(u["Name"] == "AC (10:0)" for u in result.unmatched)
+
+
+def test_single_sample_without_sample_row(tmp_path: Path):
+    # A results file whose first row is already the header (no sample-names row).
+    (tmp_path / "results.csv").write_text(
+        "Name,Area\nPC (14:0_16:0),500000\nPC (15:0_18:1) d7 (IS),1000000\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "reference_compounds.csv").write_text(REFERENCE, encoding="utf-8")
+    (tmp_path / "config_splash_II.csv").write_text(CONFIG, encoding="utf-8")
+
+    result = calc.calculate(
+        tmp_path / "results.csv",
+        tmp_path / "config_splash_II.csv",
+        tmp_path / "reference_compounds.csv",
+    )
+    # No sample-name row -> a single header row.
+    assert len(result.header_rows) == 1
+    rows = _rows_by_name(result)
+    assert float(rows["PC (14:0_16:0)"][3]) == pytest.approx(0.21231)
 
 
 def test_run_on_directory_writes_outputs(tmp_path: Path):
@@ -99,12 +145,12 @@ def test_run_on_directory_writes_outputs(tmp_path: Path):
     assert summary.report_path == tmp_path / "outputs" / "report.csv"
     assert summary.output_path.is_file()
     assert summary.report_path.is_file()
-    assert summary.config_name == "config_splash_II.csv"
 
     with summary.output_path.open(newline="", encoding="utf-8") as fh:
-        rows = list(csv.DictReader(fh))
-    assert calc.INTERNAL_STANDARD_COLUMN in rows[0]
-    assert calc.CONCENTRATION_COLUMN in rows[0]
+        out_rows = list(csv.reader(fh))
+    # Two header rows (sample names + fields), then the data rows.
+    assert out_rows[0][0] == "Compound Method"
+    assert out_rows[1][:2] == ["Name", calc.INTERNAL_STANDARD_COLUMN]
 
 
 def test_cli_main_headless(tmp_path: Path, capsys):
