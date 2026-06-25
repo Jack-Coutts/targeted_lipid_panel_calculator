@@ -39,17 +39,22 @@ flowchart TD
     C --> N
     N --> R{For each compound:<br/>is it an internal standard?<br/>has '(IS)' OR not in reference}
 
-    R -->|Yes| ISY["Internal Standard = y<br/>each sample's nmol/mL = config concentration"]
+    R -->|Yes| ISC{config concentration<br/>for this name?}
     R -->|No| CALC[Internal Standard = n<br/>find its ISTD from reference]
+
+    ISC -->|Yes| ISY["Internal Standard = y<br/>each sample's nmol/mL = config concentration"]
+    ISC -->|No| UNK["unknown:<br/>blank nmol/mL for all samples<br/>+ report 'not found in reference or config'"]
 
     CALC --> F{ISTD area in results<br/>AND ISTD conc in config?}
     F -->|No| SKIP[leave nmol/mL blank for all samples<br/>+ record in report.csv]
     F -->|Yes| FORMULA["for each sample:<br/>nmol/mL = (sample area / sample istd_area)<br/>× istd_conc × RF"]
 
     ISY --> OUT[(outputs/output.csv<br/>Area + nmol/mL per sample)]
+    UNK --> OUT
     SKIP --> OUT
     FORMULA --> OUT
-    SKIP --> REP[(outputs/report.csv)]
+    UNK --> REP[(outputs/report.csv)]
+    SKIP --> REP
 ```
 
 ---
