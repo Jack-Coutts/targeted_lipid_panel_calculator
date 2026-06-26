@@ -12,7 +12,7 @@ from targeted_lipid_panel_calculator.calculator import InputError, run_on_direct
 
 APP_TITLE = "Targeted Lipid Panel Calculator"
 _PROMPT = (
-    "Select the folder containing results.csv, reference_compounds.csv "
+    "Select the folder containing results.csv, reference_compounds*.csv "
     "and a config*.csv file"
 )
 

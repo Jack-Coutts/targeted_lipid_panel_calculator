@@ -134,6 +134,15 @@ def _read_csv(path: Path) -> tuple[list[str], list[dict[str, str]]]:
     return list(fieldnames), rows
 
 
+def _require_columns(path: Path, fieldnames: list[str], required: list[str]) -> None:
+    """Raise a clear input error if an input file is missing required columns."""
+    present = {name.strip() for name in fieldnames}
+    missing = [name for name in required if name not in present]
+    if missing:
+        missing_text = ", ".join(f"'{name}'" for name in missing)
+        raise InputError(f"{path.name} is missing required column(s): {missing_text}")
+
+
 def _to_float(value: str | None) -> float | None:
     if value is None:
         return None
@@ -149,7 +158,8 @@ def _to_float(value: str | None) -> float | None:
 def load_reference(path: Path) -> tuple[dict[str, ReferenceEntry], set[str]]:
     """Map normalized compound name -> reference entry, plus the set of all
     reference compound names (membership = "this is a measured compound")."""
-    _, rows = _read_csv(path)
+    fieldnames, rows = _read_csv(path)
+    _require_columns(path, fieldnames, [REFERENCE_NAME, REFERENCE_ISTD, REFERENCE_RF])
     by_name: dict[str, ReferenceEntry] = {}
     names: set[str] = set()
     for row in rows:
@@ -169,7 +179,8 @@ def load_reference(path: Path) -> tuple[dict[str, ReferenceEntry], set[str]]:
 
 def load_config(path: Path) -> dict[str, float]:
     """Map normalized compound name -> concentration (uM or nmol/mL)."""
-    _, rows = _read_csv(path)
+    fieldnames, rows = _read_csv(path)
+    _require_columns(path, fieldnames, [CONFIG_NAME, CONFIG_CONCENTRATION])
     conc: dict[str, float] = {}
     for row in rows:
         raw = (row.get(CONFIG_NAME) or "").strip()
@@ -208,16 +219,25 @@ def load_results(path: Path) -> ResultsTable:
         header = rows[1]
         data = rows[2:]
 
+    name_col = next(
+        (
+            i
+            for i, h in enumerate(header)
+            if h.strip().lower() == RESULTS_NAME.lower()
+        ),
+        None,
+    )
+    if name_col is None:
+        raise InputError(
+            f"Results file is missing required column '{RESULTS_NAME}': {path}"
+        )
+
     area_cols = [i for i, h in enumerate(header) if h.strip().lower() == "area"]
     if not area_cols:
         raise InputError(
             f"Results file has no 'Area' columns: {path}. Expected a header row "
             f"of 'Name' followed by one 'Area' column per sample."
         )
-    name_col = next(
-        (i for i, h in enumerate(header) if h.strip().lower() == RESULTS_NAME.lower()),
-        0,
-    )
 
     if sample_row is not None:
         sample_names = [
@@ -318,6 +338,20 @@ def calculate(
             )
             if issue is not None:
                 flag_unmatched(raw_name, "compound", issue)
+            if any(area == 0 for area in sample_areas):
+                flag_unmatched(
+                    raw_name,
+                    "compound",
+                    "compound area is zero in one or more samples",
+                )
+            if istd_areas is not None and any(area == 0 for area in istd_areas):
+                istd_label = entry.istd_raw or "(unspecified)"
+                flag_unmatched(
+                    raw_name,
+                    "compound",
+                    f"internal standard '{istd_label}' area is zero "
+                    "in one or more samples",
+                )
             nmols = []
             for j in range(n_samples):
                 value = None
@@ -375,7 +409,12 @@ def _per_sample_value(
     response_factor: float,
 ) -> float | None:
     """(area / istd_area) * istd_conc * RF for one sample, or None."""
-    if compound_area is None or istd_area is None or istd_area == 0:
+    if (
+        compound_area is None
+        or compound_area == 0
+        or istd_area is None
+        or istd_area == 0
+    ):
         return None
     return (compound_area / istd_area) * istd_conc * response_factor
 

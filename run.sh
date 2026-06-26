@@ -5,8 +5,8 @@
 # Usage:
 #   ./run.sh /path/to/input_folder
 #
-# The folder must contain results.csv, reference_compounds.csv and one
-# config*.csv. Results are written to <folder>/outputs/.
+# The folder must contain results.csv, one reference_compounds*.csv file and
+# one config*.csv file. Results are written to <folder>/outputs/.
 #
 set -euo pipefail
 
@@ -17,7 +17,7 @@ cd "$SCRIPT_DIR"
 
 if [[ $# -lt 1 || -z "${1:-}" ]]; then
   echo "Usage: $0 /path/to/input_folder" >&2
-  echo "  The folder must contain results.csv, reference_compounds.csv and one config*.csv" >&2
+  echo "  The folder must contain results.csv, one reference_compounds*.csv and one config*.csv" >&2
   exit 64
 fi
 

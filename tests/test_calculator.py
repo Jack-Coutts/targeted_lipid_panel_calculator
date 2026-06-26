@@ -112,6 +112,86 @@ def test_unknown_when_not_in_reference_or_config(tmp_path: Path):
     assert unknown[0]["Issue"] == "not found in reference or config - check this"
 
 
+def test_zero_compound_area_is_blank_and_reported(tmp_path: Path):
+    _write(tmp_path)
+    (tmp_path / "results.csv").write_text(
+        """\
+Compound Method,SampleA,SampleB
+Name,Area,Area
+PC (15:0_18:1) d7 (IS),1000000,2000000
+PC (14:0_16:0),0,400000
+""",
+        encoding="utf-8",
+    )
+
+    result = _calc(tmp_path)
+    idx = _index(result)
+    row = idx["PC (14:0_16:0)"]
+
+    assert result.nmols[row][0] == ""
+    assert float(result.nmols[row][1]) == pytest.approx(84.924)
+    assert {
+        "Name": "PC (14:0_16:0)",
+        "Role": "compound",
+        "Issue": "compound area is zero in one or more samples",
+    } in result.unmatched
+
+
+def test_zero_istd_area_is_blank_and_reported(tmp_path: Path):
+    _write(tmp_path)
+    (tmp_path / "results.csv").write_text(
+        """\
+Compound Method,SampleA,SampleB
+Name,Area,Area
+PC (15:0_18:1) d7 (IS),0,2000000
+PC (14:0_16:0),500000,400000
+""",
+        encoding="utf-8",
+    )
+
+    result = _calc(tmp_path)
+    idx = _index(result)
+    row = idx["PC (14:0_16:0)"]
+
+    assert result.nmols[row][0] == ""
+    assert float(result.nmols[row][1]) == pytest.approx(84.924)
+    assert {
+        "Name": "PC (14:0_16:0)",
+        "Role": "compound",
+        "Issue": (
+            "internal standard 'PC(15:0_18:1) d7' area is zero "
+            "in one or more samples"
+        ),
+    } in result.unmatched
+
+
+def test_missing_required_columns_error_clearly(tmp_path: Path):
+    _write(tmp_path)
+
+    (tmp_path / "reference_compounds.csv").write_text(
+        "Compound name,ISTD Compound\nPC(14:0_16:0),PC(15:0_18:1) d7\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(calc.InputError, match="Response Factor"):
+        _calc(tmp_path)
+
+    _write(tmp_path)
+    (tmp_path / "config_splash_II.csv").write_text(
+        "Name,MW\nPC (15:0_18:1) d7 (IS),753.6\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(calc.InputError, match="uM or nmol/mL"):
+        _calc(tmp_path)
+
+    _write(tmp_path)
+    (tmp_path / "results.csv").write_text(
+        "Compound Method,SampleA\nCompound,Area\nPC (14:0_16:0),500000\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(calc.InputError, match="Name"):
+        _calc(tmp_path)
+
+
 def test_single_sample_without_sample_row(tmp_path: Path):
     # A results file whose first row is already the header (no sample-names row).
     (tmp_path / "results.csv").write_text(

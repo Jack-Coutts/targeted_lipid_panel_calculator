@@ -21,10 +21,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="targeted-lipid-panel-calculator",
         description=(
-            "Append 'Internal Standard (y/n)' and 'nmol/mL' columns to "
-            "results.csv. Reads the input files from a folder and writes an "
-            "'outputs' subfolder. Run with no argument to pick a folder via a "
-            "dialog."
+            "Calculate per-sample nmol/mL values from results.csv. Reads the "
+            "input files from a folder and writes areas.csv, nmol_per_mL.csv, "
+            "and report.csv into an 'outputs' subfolder. Run with no argument "
+            "to pick a folder via a dialog."
         ),
     )
     parser.add_argument(

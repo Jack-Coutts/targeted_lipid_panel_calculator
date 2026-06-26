@@ -51,7 +51,7 @@ flowchart TD
 
     CALC --> F{"ISTD area in results<br/>AND ISTD conc in config?"}
     F -->|No| SKIP["leave nmol/mL blank for all samples<br/>+ record in report.csv"]
-    F -->|Yes| FORMULA["for each sample:<br/>nmol/mL = (sample area / sample istd_area)<br/>× istd_conc × RF"]
+    F -->|Yes| FORMULA["for each sample:<br/>if compound or ISTD area is zero, leave blank + report<br/>else nmol/mL = (sample area / sample istd_area)<br/>× istd_conc × RF"]
 
     ISY --> OUT[("outputs/areas.csv + outputs/nmol_per_mL.csv<br/>one column per sample in each")]
     UNK --> OUT
@@ -67,7 +67,9 @@ flowchart TD
 
 All three files must be in the **same folder**. Files are read as CSV with a
 UTF-8 (BOM tolerated) encoding. Only the columns listed below are used; any extra
-columns are ignored, and trailing empty columns are fine.
+columns are ignored, and trailing empty columns are fine. If a required column is
+missing or misspelled, the tool stops with a clear error instead of producing a
+partial output.
 
 ### 1. `results.csv` (exact name)
 
@@ -157,7 +159,8 @@ header row. For example, `areas.csv`:
   | PC (14:0_16:0) | n | 212.31 | 175.03 |
   | PC (15:0_18:1) d7 (IS) | y | 212.31 | 212.31 |
 
-- **`report.csv`** — one row per compound that could **not** be fully computed.
+- **`report.csv`** — one row per issue that prevented one or more `nmol/mL`
+  values from being computed.
   Its columns are:
   - **`Name`** — the compound name from `results.csv`.
   - **`Role`** — how the compound was treated: `compound` (a measured compound
@@ -175,7 +178,7 @@ concentration is then calculated **independently for every sample** (every
 
 1. **Internal standard?** A row is an internal standard if its name has an `(IS)`
    marker **or** it does not appear in the `Compound name` column of
-   `reference_compounds.csv`.
+   the `reference_compounds*.csv` file.
    - If so → `Internal Standard = y`, and each sample's `nmol/mL` is the config
      file's `uM or nmol/mL` value for that name (the same for every sample).
    - **Unknown rows.** A row that is treated as an internal standard *only*
@@ -197,9 +200,13 @@ concentration is then calculated **independently for every sample** (every
    - **Response Factor** — from the compound's row in the reference file.
    - If the ISTD is missing from `results.csv`, or its concentration is missing
      from the config, the compound's `nmol/mL` is left blank in every sample and
-     it is listed in `report.csv`. An individual sample with a missing/zero area
-     is left blank just for that sample. Duplicate result rows use the first
-     occurrence for ISTD-area lookups.
+     it is listed in `report.csv`.
+   - If an individual sample has a missing compound area, the `nmol/mL` value is
+     left blank for just that sample.
+   - If an individual sample has a zero compound area or zero ISTD area, the
+     `nmol/mL` value is left blank for just that sample and the compound is
+     listed in `report.csv` with a reason explaining which area was zero.
+   - Duplicate result rows use the first occurrence for ISTD-area lookups.
 
 ---
 
@@ -214,17 +221,17 @@ You need [uv](https://docs.astral.sh/uv/) installed.
 ```
 
 `run.sh` syncs the environment and runs the calculator on the given folder. Run
-it with no argument to see usage. Example using the bundled sample data:
+it with no argument to see usage. Example:
 
 ```bash
-./run.sh data
+./run.sh /Users/you/lipid_runs/run_001
 ```
 
 ### Option B — uv directly
 
 ```bash
 uv sync                                          # one-time / after changes
-uv run targeted-lipid-panel-calculator data      # headless on a folder
+uv run targeted-lipid-panel-calculator /path/to/input_folder
 uv run targeted-lipid-panel-calculator           # no arg -> folder-picker GUI
 ```
 
@@ -293,7 +300,6 @@ folder path on the console.
 ├── app.py                  # PyInstaller entry script
 ├── build.py                # builds the executable for the current OS
 ├── pyproject.toml
-├── data/                   # example input files
 ├── src/targeted_lipid_panel_calculator/
 │   ├── calculator.py       # core logic (load, normalise, compute, report)
 │   ├── cli.py              # CLI + GUI/console dispatch
