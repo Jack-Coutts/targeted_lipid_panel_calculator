@@ -21,6 +21,7 @@ results into an `outputs/` subfolder of that same folder.
 - [Input files (exact requirements)](#input-files-exact-requirements)
 - [Output files](#output-files)
 - [How the calculation works](#how-the-calculation-works)
+- [Download built apps](#download-built-apps)
 - [Running it](#running-it)
 - [Development](#development)
 - [Building a click-to-run executable](#building-a-click-to-run-executable)
@@ -210,6 +211,22 @@ concentration is then calculated **independently for every sample** (every
 
 ---
 
+## Download built apps
+
+Download the latest app from the
+[GitHub Releases](https://github.com/Jack-Coutts/targeted_lipid_panel_calculator/releases)
+page.
+
+Release files are named:
+
+- **macOS:** `TargetedLipidPanelCalculator - MAC.zip`
+- **Windows:** `TargetedLipidPanelCalculator - WINDOWS.zip`
+
+Unzip the file for your operating system, then double-click the app. On macOS,
+if you see a security warning, right-click the app and choose **Open**.
+
+---
+
 ## Running it
 
 You need [uv](https://docs.astral.sh/uv/) installed.
@@ -279,16 +296,23 @@ Results land in `dist/`:
 - **Windows:** `dist/TargetedLipidPanelCalculator.exe` (single file).
 - **macOS:** `dist/TargetedLipidPanelCalculator.app` (double-clickable bundle).
 
-### GUI requirement: Tk
+When uploading a release to GitHub, zip the app using these exact filenames:
 
-The folder-picker GUI uses `tkinter`, so the **build machine's** Python must
-include Tk:
+- `TargetedLipidPanelCalculator - MAC.zip`
+- `TargetedLipidPanelCalculator - WINDOWS.zip`
 
-- **Windows / macOS (python.org installers):** Tk is included — nothing to do.
-- **macOS (Homebrew Python):** `brew install python-tk@3.14`.
+### Folder picker on macOS and Windows
 
-If Tk is unavailable the app still runs, but instead of a dialog it prompts for the
-folder path on the console.
+The double-click app opens a folder picker:
+
+- **Windows:** uses `tkinter`, which is included with the standard python.org
+  installer.
+- **macOS:** uses `tkinter` when available. If the Python used for the build does
+  not include Tk (common with some Homebrew/uv Python installs), the app falls
+  back to macOS's built-in folder picker via AppleScript.
+
+If no graphical picker is available, running from source in a terminal still works
+by prompting for the folder path.
 
 ---
 

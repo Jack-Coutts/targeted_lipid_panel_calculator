@@ -271,9 +271,10 @@ def test_cli_main_bad_directory(tmp_path: Path, capsys):
 
 
 def test_tk_available_returns_bool():
-    from targeted_lipid_panel_calculator.gui import tk_available
+    from targeted_lipid_panel_calculator.gui import macos_dialog_available, tk_available
 
     assert isinstance(tk_available(), bool)
+    assert isinstance(macos_dialog_available(), bool)
 
 
 def test_discover_inputs_errors(tmp_path: Path):

@@ -55,10 +55,17 @@ def main(argv: list[str] | None = None) -> int:
 
     directory = args.directory
     if directory is None:
-        from targeted_lipid_panel_calculator.gui import run_gui, tk_available
+        from targeted_lipid_panel_calculator.gui import (
+            macos_dialog_available,
+            run_gui,
+            run_macos_dialog,
+            tk_available,
+        )
 
         if tk_available():
             return run_gui()
+        if macos_dialog_available():
+            return run_macos_dialog()
         # No GUI toolkit (e.g. a console-only Python build): ask on the console.
         directory = _prompt_for_directory()
         if directory is None:
