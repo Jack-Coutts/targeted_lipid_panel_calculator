@@ -4,9 +4,9 @@ Usage:
     * No argument  -> opens a folder-picker GUI (the double-click experience).
     * <directory>  -> headless run on that folder, prints a summary.
 
-Either way it reads results.csv, reference_compounds.csv and a config*.csv
-from the folder and writes ``<folder>/outputs/output.csv`` and
-``<folder>/outputs/report.csv``.
+Either way it reads results.csv, reference_compounds*.csv and a config*.csv
+from the folder and writes ``<folder>/outputs/areas.csv``,
+``<folder>/outputs/nmol_per_mL.csv`` and ``<folder>/outputs/report.csv``.
 """
 
 from __future__ import annotations
@@ -72,8 +72,9 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     print(f"Processed {summary.row_count} rows using {summary.config_name}.")
-    print(f"Output: {summary.output_path}")
-    print(f"Report: {summary.report_path}")
+    print(f"Areas:   {summary.areas_path}")
+    print(f"nmol/mL: {summary.nmol_path}")
+    print(f"Report:  {summary.report_path}")
     if summary.unmatched_count:
         print(
             f"{summary.unmatched_count} row(s) could not be fully matched "

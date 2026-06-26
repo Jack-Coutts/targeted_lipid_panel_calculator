@@ -1,10 +1,10 @@
 """Core logic for the targeted lipid panel calculator.
 
-Reads three CSV inputs (results, config, reference compounds) and writes an
-output CSV. The results file holds one ``Area`` column per sample; the output
-keeps the ``Name`` column, adds a single ``Internal Standard (y/n)`` column,
-then for each sample emits its ``Area`` immediately followed by the calculated
-``nmol/mL``.
+Reads three CSV inputs (results, config, reference compounds) and writes two
+output CSVs: an areas table and an nmol/mL table. The results file holds one
+``Area`` column per sample; each output table keeps the ``Name`` column, adds a
+single ``Internal Standard (y/n)`` column, then has one column per sample (the
+``Area`` in one file, the calculated ``nmol/mL`` in the other).
 
 See the module-level :func:`calculate` for the full algorithm.
 """
@@ -28,7 +28,8 @@ RESULTS_FILENAME = "results.csv"
 REFERENCE_GLOB = "reference_compounds*.csv"
 CONFIG_GLOB = "config*.csv"
 OUTPUT_DIRNAME = "outputs"
-OUTPUT_FILENAME = "output.csv"
+AREAS_FILENAME = "areas.csv"
+NMOL_FILENAME = "nmol_per_mL.csv"
 REPORT_FILENAME = "report.csv"
 REFERENCE_NAME = "Compound name"
 REFERENCE_ISTD = "ISTD Compound"
@@ -75,7 +76,8 @@ class DiscoveredInputs:
 
 @dataclass
 class RunSummary:
-    output_path: Path
+    areas_path: Path
+    nmol_path: Path
     report_path: Path
     row_count: int
     unmatched_count: int
@@ -110,8 +112,16 @@ class ResultsTable:
 
 @dataclass
 class CalculationResult:
-    header_rows: list[list[str]]  # 1 or 2 header rows (sample names + fields)
-    data_rows: list[list[str]]
+    """Computed results, kept column-agnostic so the area table and the
+    nmol/mL table can both be written from the same data."""
+
+    first_cell: str  # original top-left cell of the results file
+    sample_names: list[str]  # one per sample
+    has_sample_row: bool
+    names: list[str]  # compound name per data row
+    is_flags: list[str]  # "y"/"n" per data row
+    areas: list[list[str]]  # per data row: original area string per sample
+    nmols: list[list[str]]  # per data row: formatted nmol/mL string per sample
     unmatched: list[dict[str, str]] = field(default_factory=list)
 
 
@@ -252,31 +262,22 @@ def calculate(
     config_path: Path,
     reference_path: Path,
 ) -> CalculationResult:
-    """Run the full calculation and return rows ready to be written out.
+    """Run the full calculation.
 
-    The output keeps the ``Name`` column, adds a single ``Internal Standard
-    (y/n)`` column, then for every sample emits its ``Area`` immediately
-    followed by the calculated ``nmol/mL``.
+    For every compound it records the per-sample ``Area`` (carried through
+    unchanged) and the calculated per-sample ``nmol/mL``. These are written out
+    as two separate tables (see :func:`write_areas` and :func:`write_nmol`),
+    each with a ``Name`` and a single ``Internal Standard (y/n)`` column.
     """
     reference, reference_names = load_reference(reference_path)
     config = load_config(config_path)
     table = load_results(results_path)
     n_samples = len(table.sample_names)
 
-    # Header rows: optional sample-name row, then the field header.
-    field_header = [RESULTS_NAME, INTERNAL_STANDARD_COLUMN]
-    for _ in range(n_samples):
-        field_header += [RESULTS_AREA, CONCENTRATION_COLUMN]
-
-    header_rows: list[list[str]] = []
-    if table.has_sample_row:
-        sample_header = [table.first_cell, ""]
-        for name in table.sample_names:
-            sample_header += [name, name]  # label both Area and its nmol/mL
-        header_rows.append(sample_header)
-    header_rows.append(field_header)
-
-    data_rows: list[list[str]] = []
+    names: list[str] = []
+    is_flags: list[str] = []
+    areas_out: list[list[str]] = []
+    nmols_out: list[list[str]] = []
     unmatched: list[dict[str, str]] = []
 
     def flag_unmatched(name: str, role: str, issue: str) -> None:
@@ -291,8 +292,6 @@ def calculate(
             norm not in reference_names
         )
 
-        out_row: list[str] = [raw_name, "y" if is_internal_standard else "n"]
-
         if is_internal_standard:
             conc = config.get(norm)
             conc_str = "" if conc is None else _format_number(conc)
@@ -306,8 +305,7 @@ def calculate(
                     "not found in reference or config - check this",
                 )
             # An internal standard's concentration is the same for every sample.
-            for j in range(n_samples):
-                out_row += [sample_areas_raw[j], conc_str]
+            nmols = [conc_str for _ in range(n_samples)]
         else:
             entry = reference[norm]
             istd_areas = table.area_by_norm.get(entry.istd_norm)
@@ -320,6 +318,7 @@ def calculate(
             )
             if issue is not None:
                 flag_unmatched(raw_name, "compound", issue)
+            nmols = []
             for j in range(n_samples):
                 value = None
                 if issue is None:
@@ -329,15 +328,22 @@ def calculate(
                         istd_conc=istd_conc,  # type: ignore[arg-type]
                         response_factor=entry.response_factor,  # type: ignore[arg-type]
                     )
-                out_row += [
-                    sample_areas_raw[j],
-                    "" if value is None else _format_number(value),
-                ]
+                nmols.append("" if value is None else _format_number(value))
 
-        data_rows.append(out_row)
+        names.append(raw_name)
+        is_flags.append("y" if is_internal_standard else "n")
+        areas_out.append(list(sample_areas_raw))
+        nmols_out.append(nmols)
 
     return CalculationResult(
-        header_rows=header_rows, data_rows=data_rows, unmatched=unmatched
+        first_cell=table.first_cell,
+        sample_names=table.sample_names,
+        has_sample_row=table.has_sample_row,
+        names=names,
+        is_flags=is_flags,
+        areas=areas_out,
+        nmols=nmols_out,
+        unmatched=unmatched,
     )
 
 
@@ -379,11 +385,33 @@ def _format_number(value: float) -> str:
     return f"{value:.6g}"
 
 
-def write_output(path: Path, result: CalculationResult) -> None:
+def _write_table(
+    path: Path,
+    result: CalculationResult,
+    value_label: str,
+    values: list[list[str]],
+) -> None:
+    """Write one wide table: Name, Internal Standard (y/n), one column/sample."""
     with path.open("w", newline="", encoding="utf-8") as fh:
         writer = csv.writer(fh)
-        writer.writerows(result.header_rows)
-        writer.writerows(result.data_rows)
+        if result.has_sample_row:
+            writer.writerow([result.first_cell, "", *result.sample_names])
+        value_cols = [value_label] * len(result.sample_names)
+        writer.writerow([RESULTS_NAME, INTERNAL_STANDARD_COLUMN, *value_cols])
+        for name, flag, row_values in zip(
+            result.names, result.is_flags, values, strict=True
+        ):
+            writer.writerow([name, flag, *row_values])
+
+
+def write_areas(path: Path, result: CalculationResult) -> None:
+    """Write the areas table (one ``Area`` column per sample)."""
+    _write_table(path, result, RESULTS_AREA, result.areas)
+
+
+def write_nmol(path: Path, result: CalculationResult) -> None:
+    """Write the concentration table (one ``nmol/mL`` column per sample)."""
+    _write_table(path, result, CONCENTRATION_COLUMN, result.nmols)
 
 
 def write_report(path: Path, result: CalculationResult) -> None:
@@ -453,17 +481,20 @@ def run_on_directory(directory: Path) -> RunSummary:
 
     output_dir = directory / OUTPUT_DIRNAME
     output_dir.mkdir(exist_ok=True)
-    output_path = output_dir / OUTPUT_FILENAME
+    areas_path = output_dir / AREAS_FILENAME
+    nmol_path = output_dir / NMOL_FILENAME
     report_path = output_dir / REPORT_FILENAME
 
     result = calculate(inputs.results, inputs.config, inputs.reference)
-    write_output(output_path, result)
+    write_areas(areas_path, result)
+    write_nmol(nmol_path, result)
     write_report(report_path, result)
 
     return RunSummary(
-        output_path=output_path,
+        areas_path=areas_path,
+        nmol_path=nmol_path,
         report_path=report_path,
-        row_count=len(result.data_rows),
+        row_count=len(result.names),
         unmatched_count=len(result.unmatched),
         config_name=inputs.config.name,
     )

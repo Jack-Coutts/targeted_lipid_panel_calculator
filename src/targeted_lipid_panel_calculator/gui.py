@@ -52,8 +52,9 @@ def run_gui() -> int:
         lines = [
             f"Processed {summary.row_count} rows using {summary.config_name}.",
             "",
-            f"Output: {summary.output_path}",
-            f"Report: {summary.report_path}",
+            f"Areas:   {summary.areas_path}",
+            f"nmol/mL: {summary.nmol_path}",
+            f"Report:  {summary.report_path}",
         ]
         if summary.unmatched_count:
             lines += [

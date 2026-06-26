@@ -5,7 +5,8 @@ dist/
 
 # Calculator outputs
 outputs/
-output.csv
+areas.csv
+nmol_per_mL.csv
 
 # Python
 __pycache__/

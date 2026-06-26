@@ -1,10 +1,14 @@
 # targeted-lipid-panel-calculator
 
-Enriches a lipidomics `results.csv` (which holds one `Area` column per sample):
+Processes a lipidomics `results.csv` (which holds one `Area` column per sample)
+and writes two parallel tables:
 
-- adds an **`Internal Standard (y/n)`** column per compound, and
-- adds a **`nmol/mL`** value next to every sample's `Area` (blank when it can't
-  be computed).
+- **`areas.csv`** — each compound's original `Area` per sample, and
+- **`nmol_per_mL.csv`** — the calculated `nmol/mL` per sample (blank when it
+  can't be computed).
+
+Both tables carry the same `Name` and `Internal Standard (y/n)` columns, so the
+two files line up row-for-row.
 
 You point the tool at a **folder** containing the three input files; it writes the
 results into an `outputs/` subfolder of that same folder.
@@ -49,7 +53,7 @@ flowchart TD
     F -->|No| SKIP["leave nmol/mL blank for all samples<br/>+ record in report.csv"]
     F -->|Yes| FORMULA["for each sample:<br/>nmol/mL = (sample area / sample istd_area)<br/>× istd_conc × RF"]
 
-    ISY --> OUT[("outputs/output.csv<br/>Area + nmol/mL per sample")]
+    ISY --> OUT[("outputs/areas.csv + outputs/nmol_per_mL.csv<br/>one column per sample in each")]
     UNK --> OUT
     SKIP --> OUT
     FORMULA --> OUT
@@ -130,16 +134,28 @@ there are zero or more than one).
 
 Written to `<input folder>/outputs/`:
 
-- **`output.csv`** — `Name`, a single `Internal Standard (y/n)` column, then for
-  **every sample** its `Area` immediately followed by the calculated `nmol/mL`.
-  The sample names are carried across as a top header row, labelling each
-  `Area` + `nmol/mL` pair, e.g.:
+- **`areas.csv`** — `Name`, a single `Internal Standard (y/n)` column, then one
+  `Area` column **per sample** (the original areas, carried through unchanged).
+- **`nmol_per_mL.csv`** — the same `Name` and `Internal Standard (y/n)` columns,
+  then one `nmol/mL` column **per sample** (the calculated values).
 
-  | Compound Method | | Sample_01 | Sample_01 | Sample_02 | Sample_02 |
-  |---|---|---|---|---|---|
-  | **Name** | **Internal Standard (y/n)** | **Area** | **nmol/mL** | **Area** | **nmol/mL** |
-  | PC (14:0_16:0) | n | 500000 | 212.31 | 412300 | 175.03 |
-  | PC (15:0_18:1) d7 (IS) | y | 58328343 | 212.31 | 60112022 | 212.31 |
+Both files share the same rows in the same order, so they line up
+column-for-column on the samples. The sample names are carried across as a top
+header row. For example, `areas.csv`:
+
+  | Compound Method | | Sample_01 | Sample_02 |
+  |---|---|---|---|
+  | **Name** | **Internal Standard (y/n)** | **Area** | **Area** |
+  | PC (14:0_16:0) | n | 500000 | 412300 |
+  | PC (15:0_18:1) d7 (IS) | y | 58328343 | 60112022 |
+
+  and the matching `nmol_per_mL.csv`:
+
+  | Compound Method | | Sample_01 | Sample_02 |
+  |---|---|---|---|
+  | **Name** | **Internal Standard (y/n)** | **nmol/mL** | **nmol/mL** |
+  | PC (14:0_16:0) | n | 212.31 | 175.03 |
+  | PC (15:0_18:1) d7 (IS) | y | 212.31 | 212.31 |
 
 - **`report.csv`** — one row per compound that could **not** be fully computed.
   Its columns are:
@@ -218,7 +234,8 @@ See [Building a click-to-run executable](#building-a-click-to-run-executable).
 Double-clicking opens a folder picker; pick the folder with your CSVs and the
 `outputs/` folder is written there.
 
-After any of these, look in `<folder>/outputs/` for `output.csv` and `report.csv`.
+After any of these, look in `<folder>/outputs/` for `areas.csv`,
+`nmol_per_mL.csv` and `report.csv`.
 Any compound whose `nmol/mL` could not be calculated (for example because its
 internal standard is not present in this run) is listed in `report.csv` with the
 reason.
