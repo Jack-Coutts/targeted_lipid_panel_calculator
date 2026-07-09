@@ -48,7 +48,7 @@ flowchart TD
     R -->|No| CALC["Internal Standard = n<br/>find its ISTD from reference"]
 
     ISC -->|Yes| ISY["Internal Standard = y<br/>each sample's nmol/mL = config concentration"]
-    ISC -->|No| UNK["unknown:<br/>blank nmol/mL for all samples<br/>+ report not found in reference or config"]
+    ISC -->|No| UNK["Internal Standard = not found<br/>blank nmol/mL for all samples<br/>+ report not found in reference or config"]
 
     CALC --> F{"ISTD area in results<br/>AND ISTD conc in config?"}
     F -->|No| SKIP["leave nmol/mL blank for all samples<br/>+ record in report.csv"]
@@ -185,9 +185,10 @@ concentration is then calculated **independently for every sample** (every
    - **Unknown rows.** A row that is treated as an internal standard *only*
      because it isn't in the reference, **and** also has no concentration in the
      config, can't be identified as either a real compound or a known standard.
-     Its `nmol/mL` is left blank and it is listed in `report.csv` with
-     `Role = unknown` and `Issue = "not found in reference or config - check
-     this"` so it can be investigated.
+     Its `Internal Standard` value is set to `not found`, its `nmol/mL` is left
+     blank, and it is listed in `report.csv` with `Role = unknown` and
+     `Issue = "not found in reference or config - check this"` so it can be
+     investigated.
 2. **Otherwise** → `Internal Standard = n`, and for each sample:
 
    ```

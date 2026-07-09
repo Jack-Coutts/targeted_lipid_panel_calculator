@@ -106,6 +106,10 @@ def test_missing_istd_is_blank_and_reported(tmp_path: Path):
 def test_unknown_when_not_in_reference_or_config(tmp_path: Path):
     _write(tmp_path)
     result = _calc(tmp_path)
+    idx = _index(result)
+    unknown_row = idx["Mystery (1:0)"]
+    assert result.is_flags[unknown_row] == "not found"
+    assert result.nmols[unknown_row] == ["", ""]
     unknown = [u for u in result.unmatched if u["Name"] == "Mystery (1:0)"]
     assert len(unknown) == 1
     assert unknown[0]["Role"] == "unknown"

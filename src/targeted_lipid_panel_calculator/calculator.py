@@ -119,7 +119,7 @@ class CalculationResult:
     sample_names: list[str]  # one per sample
     has_sample_row: bool
     names: list[str]  # compound name per data row
-    is_flags: list[str]  # "y"/"n" per data row
+    is_flags: list[str]  # "y"/"n"/"not found" per data row
     areas: list[list[str]]  # per data row: original area string per sample
     nmols: list[list[str]]  # per data row: formatted nmol/mL string per sample
     unmatched: list[dict[str, str]] = field(default_factory=list)
@@ -324,9 +324,13 @@ def calculate(
                     "unknown",
                     "not found in reference or config - check this",
                 )
+                is_flag = "not found"
+            else:
+                is_flag = "y"
             # An internal standard's concentration is the same for every sample.
             nmols = [conc_str for _ in range(n_samples)]
         else:
+            is_flag = "n"
             entry = reference[norm]
             istd_areas = table.area_by_norm.get(entry.istd_norm)
             istd_conc = config.get(entry.istd_norm)
@@ -365,7 +369,7 @@ def calculate(
                 nmols.append("" if value is None else _format_number(value))
 
         names.append(raw_name)
-        is_flags.append("y" if is_internal_standard else "n")
+        is_flags.append(is_flag)
         areas_out.append(list(sample_areas_raw))
         nmols_out.append(nmols)
 
